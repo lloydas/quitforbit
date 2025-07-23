@@ -1,4 +1,4 @@
-# 🏆 Milestone - Overcome Addiction with Bitcoin Rewards
+# 🏆 QuitForBit - Overcome Addiction with Bitcoin Rewards
 
 A Flutter mobile application designed to help users overcome pornography addiction through streak tracking, educational content, and Bitcoin rewards for achieving milestones.
 
@@ -53,8 +53,8 @@ A Flutter mobile application designed to help users overcome pornography addicti
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/milestone-app.git
-   cd milestone-app
+   git clone https://github.com/lloydas/quitforbit.git
+   cd quitforbit
    ```
 
 2. **Install dependencies**
@@ -218,9 +218,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🆘 Support
 
-- **Email**: support@milestone-app.com
-- **Documentation**: [docs.milestone-app.com](https://docs.milestone-app.com)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/milestone-app/issues)
+- **Email**: support@quitforbit.com
+- **Documentation**: [docs.quitforbit.com](https://docs.quitforbit.com)
+- **Issues**: [GitHub Issues](https://github.com/lloydas/quitforbit/issues)
 
 ## 🙏 Acknowledgments
 
