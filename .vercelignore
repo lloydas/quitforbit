@@ -1,0 +1,46 @@
+# Flutter/Dart related
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Build artifacts (except web)
+build/android/
+build/ios/
+build/linux/
+build/macos/
+build/windows/
+
+# Development files
+*.log
+.DS_Store
+.env
+.env.local
+.env.*.local
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+research/
+
+# Tests
+test/
+integration_test/
+
+# Platform specific (we only need web)
+android/
+ios/
+linux/
+macos/
+windows/ 
