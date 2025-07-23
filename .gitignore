@@ -158,3 +158,4 @@ app.*.symbols
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
 !/dev/ci/**/Gemfile.lock
 >>>>>>> 5b1482523fd43f3a6c6e9c74a50bd4632e62d4c3
+.vercel
