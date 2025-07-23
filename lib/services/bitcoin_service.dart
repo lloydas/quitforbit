@@ -296,4 +296,193 @@ class BitcoinService {
       rethrow;
     }
   }
+
+  // Send Bitcoin to another wallet
+  Future<BitcoinTransactionModel> sendBitcoin({
+    required String userId,
+    required String recipientAddress,
+    required double bitcoinAmount,
+    String? note,
+  }) async {
+    try {
+      // Validate recipient address
+      if (!isValidBitcoinAddress(recipientAddress)) {
+        throw Exception('Invalid Bitcoin address: $recipientAddress');
+      }
+
+      // Check user balance
+      final userBalance = await getUserBitcoinBalance(userId);
+      final networkFee = await estimateNetworkFee(bitcoinAmount);
+      final totalRequired = bitcoinAmount + networkFee;
+
+      if (userBalance < totalRequired) {
+        throw Exception(
+          'Insufficient balance. Required: $totalRequired BTC, Available: $userBalance BTC',
+        );
+      }
+
+      // Convert Bitcoin amount to USD for record keeping
+      final usdAmount = await bitcoinToUsd(bitcoinAmount);
+
+      // Create send transaction
+      final transaction = BitcoinTransactionModel.createSendTransaction(
+        userId: userId,
+        amount: usdAmount,
+        bitcoinAmount: bitcoinAmount,
+        recipientAddress: recipientAddress,
+        networkFee: networkFee,
+      );
+
+      // Save transaction to Firestore
+      final docRef = await _firestore
+          .collection('bitcoin_transactions')
+          .add(transaction.toFirestore());
+
+      // Process the transaction
+      if (_isTestMode) {
+        await _simulateTestnetSendTransaction(docRef.id, transaction);
+      } else {
+        await _processRealSendTransaction(docRef.id, transaction);
+      }
+
+      return transaction.copyWith(status: TransactionStatus.processing);
+    } catch (e) {
+      print('Error sending Bitcoin: $e');
+      rethrow;
+    }
+  }
+
+  // Get user's Bitcoin balance
+  Future<double> getUserBitcoinBalance(String userId) async {
+    try {
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      if (!userDoc.exists) return 0.0;
+
+      final userData = userDoc.data()!;
+      return (userData['totalBitcoinEarned'] ?? 0.0).toDouble();
+    } catch (e) {
+      print('Error fetching user balance: $e');
+      return 0.0;
+    }
+  }
+
+  // Estimate network fee for transaction
+  Future<double> estimateNetworkFee(double bitcoinAmount) async {
+    try {
+      if (_isTestMode) {
+        // For testnet, use a minimal fee
+        return 0.00001; // 0.00001 BTC fee for testnet
+      } else {
+        // In production, implement proper fee estimation
+        // This could integrate with fee estimation APIs
+        return 0.0001; // Placeholder mainnet fee
+      }
+    } catch (e) {
+      print('Error estimating network fee: $e');
+      return 0.0001; // Fallback fee
+    }
+  }
+
+  // Convert Bitcoin amount to USD
+  Future<double> bitcoinToUsd(double bitcoinAmount) async {
+    final btcPrice = await getBitcoinPrice();
+    return bitcoinAmount * btcPrice;
+  }
+
+  // Simulate testnet send transaction
+  Future<void> _simulateTestnetSendTransaction(
+    String transactionId,
+    BitcoinTransactionModel transaction,
+  ) async {
+    try {
+      // Simulate processing delay
+      await Future.delayed(const Duration(seconds: 3));
+
+      // Generate fake transaction hash for testnet
+      final fakeHash = _generateFakeTransactionHash();
+
+      // Update transaction as completed
+      await _firestore
+          .collection('bitcoin_transactions')
+          .doc(transactionId)
+          .update({
+            'status': TransactionStatus.completed.name,
+            'transactionHash': fakeHash,
+            'completedAt': Timestamp.now(),
+          });
+
+      // Deduct from user's balance
+      await _updateUserBalance(
+        transaction.userId,
+        -transaction.amount,
+        -(transaction.bitcoinAmount +
+            (transaction.metadata['networkFee'] ?? 0.0)),
+      );
+
+      print('Testnet send transaction completed: $fakeHash');
+    } catch (e) {
+      // Mark transaction as failed
+      await _firestore
+          .collection('bitcoin_transactions')
+          .doc(transactionId)
+          .update({
+            'status': TransactionStatus.failed.name,
+            'errorMessage': e.toString(),
+          });
+      rethrow;
+    }
+  }
+
+  // Process real send transaction (placeholder for production)
+  Future<void> _processRealSendTransaction(
+    String transactionId,
+    BitcoinTransactionModel transaction,
+  ) async {
+    // TODO: Integrate with actual Bitcoin wallet/payment processor
+    throw UnimplementedError(
+      'Real Bitcoin send transactions not implemented in MVP',
+    );
+  }
+
+  // Update user balance (can be positive or negative)
+  Future<void> _updateUserBalance(
+    String userId,
+    double usdAmountDelta,
+    double bitcoinAmountDelta,
+  ) async {
+    final userRef = _firestore.collection('users').doc(userId);
+
+    await _firestore.runTransaction((transaction) async {
+      final userDoc = await transaction.get(userRef);
+      if (!userDoc.exists) return;
+
+      final currentEarned = (userDoc.data()?['totalEarned'] ?? 0.0).toDouble();
+      final currentBitcoinEarned =
+          (userDoc.data()?['totalBitcoinEarned'] ?? 0.0).toDouble();
+
+      final newEarned = currentEarned + usdAmountDelta;
+      final newBitcoinEarned = currentBitcoinEarned + bitcoinAmountDelta;
+
+      transaction.update(userRef, {
+        'totalEarned': newEarned > 0 ? newEarned : 0.0,
+        'totalBitcoinEarned': newBitcoinEarned > 0 ? newBitcoinEarned : 0.0,
+      });
+    });
+  }
+
+  // Get maximum sendable amount (balance minus estimated fee)
+  Future<double> getMaxSendableAmount(String userId) async {
+    final balance = await getUserBitcoinBalance(userId);
+    final minFee = await estimateNetworkFee(
+      0.0001,
+    ); // Estimate fee for small amount
+    return (balance - minFee).clamp(0.0, balance);
+  }
+
+  // Validate if user can send specific amount
+  Future<bool> canSendAmount(String userId, double bitcoinAmount) async {
+    final balance = await getUserBitcoinBalance(userId);
+    final fee = await estimateNetworkFee(bitcoinAmount);
+    return balance >= (bitcoinAmount + fee);
+  }
 }

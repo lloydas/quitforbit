@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/streak_provider.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../widgets/common/custom_button.dart';
+import '../wallet/send_bitcoin_screen.dart';
 
 class MVPDashboardScreen extends ConsumerStatefulWidget {
   const MVPDashboardScreen({super.key});
@@ -20,6 +21,7 @@ class _MVPDashboardScreenState extends ConsumerState<MVPDashboardScreen> {
     final userAsync = ref.watch(streakProvider);
     final nextMilestone = ref.watch(nextMilestoneProvider);
     final bitcoinPriceAsync = ref.watch(bitcoinPriceProvider);
+    final balanceAsync = ref.watch(userBitcoinBalanceProvider);
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -80,7 +82,7 @@ class _MVPDashboardScreenState extends ConsumerState<MVPDashboardScreen> {
                   const SizedBox(height: 24),
 
                   // Bitcoin balance card
-                  _buildBitcoinCard(user, bitcoinPriceAsync),
+                  _buildBitcoinCard(user, bitcoinPriceAsync, balanceAsync),
                   const SizedBox(height: 24),
 
                   // Next milestone card
@@ -178,7 +180,11 @@ class _MVPDashboardScreenState extends ConsumerState<MVPDashboardScreen> {
     );
   }
 
-  Widget _buildBitcoinCard(user, AsyncValue<double> bitcoinPriceAsync) {
+  Widget _buildBitcoinCard(
+    user,
+    AsyncValue<double> bitcoinPriceAsync,
+    AsyncValue<double> balanceAsync,
+  ) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -197,7 +203,7 @@ class _MVPDashboardScreenState extends ConsumerState<MVPDashboardScreen> {
                 ),
                 const SizedBox(width: 8),
                 const Text(
-                  'Bitcoin Earnings',
+                  'Bitcoin Wallet',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),
@@ -222,30 +228,86 @@ class _MVPDashboardScreenState extends ConsumerState<MVPDashboardScreen> {
               ],
             ),
             const SizedBox(height: 16),
+            // Current Balance
+            const Text(
+              'Current Balance',
+              style: TextStyle(fontSize: 14, color: Colors.grey),
+            ),
+            const SizedBox(height: 4),
+            balanceAsync.when(
+              data:
+                  (balance) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${balance.toStringAsFixed(8)} BTC',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange,
+                        ),
+                      ),
+                      bitcoinPriceAsync.when(
+                        data:
+                            (price) => Text(
+                              '≈ \$${(balance * price).toStringAsFixed(2)} USD',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey,
+                              ),
+                            ),
+                        loading: () => const Text('Loading USD value...'),
+                        error: (_, __) => const Text('USD value unavailable'),
+                      ),
+                    ],
+                  ),
+              loading: () => const Text('Loading balance...'),
+              error: (_, __) => const Text('Balance unavailable'),
+            ),
+            const SizedBox(height: 16),
+            // Total Earned
+            const Text(
+              'Total Earned',
+              style: TextStyle(fontSize: 14, color: Colors.grey),
+            ),
+            const SizedBox(height: 4),
             Text(
               user.totalEarnedDisplayText,
               style: const TextStyle(
-                fontSize: 28,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
                 color: Colors.green,
               ),
             ),
-            const SizedBox(height: 4),
-            bitcoinPriceAsync.when(
-              data:
-                  (price) => Text(
-                    '≈ ${(user.totalEarned / price).toStringAsFixed(8)} BTC',
-                    style: const TextStyle(fontSize: 14, color: Colors.grey),
-                  ),
-              loading: () => const Text('Loading BTC amount...'),
-              error: (_, __) => const Text('BTC amount unavailable'),
-            ),
+            const SizedBox(height: 16),
+            // Action buttons
             if (!user.hasBitcoinWallet) ...[
-              const SizedBox(height: 16),
               CustomButton(
                 text: 'Set Up Bitcoin Wallet',
                 onPressed: () => _setupBitcoinWallet(),
                 backgroundColor: Colors.orange,
+              ),
+            ] else ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomButton(
+                      text: 'Send Bitcoin',
+                      onPressed: () => _navigateToSendBitcoin(),
+                      backgroundColor: Colors.orange,
+                      icon: Icons.send,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: CustomButton(
+                      text: 'History',
+                      onPressed: () => _showTransactionHistory(),
+                      isOutlined: true,
+                      icon: Icons.history,
+                    ),
+                  ),
+                ],
               ),
             ],
           ],
@@ -619,6 +681,23 @@ class _MVPDashboardScreenState extends ConsumerState<MVPDashboardScreen> {
               ),
             ],
           ),
+    );
+  }
+
+  void _navigateToSendBitcoin() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (context) => const SendBitcoinScreen()));
+  }
+
+  void _showTransactionHistory() {
+    // TODO: Implement transaction history screen
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Transaction history will be available in a future update',
+        ),
+      ),
     );
   }
 

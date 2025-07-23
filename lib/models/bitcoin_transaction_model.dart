@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum TransactionType { milestone, signup, referral, bonus }
+enum TransactionType { milestone, signup, referral, bonus, send, receive }
 
 enum TransactionStatus { pending, processing, completed, failed, cancelled }
 
@@ -140,6 +140,10 @@ class BitcoinTransactionModel {
         return 'Referral Bonus';
       case TransactionType.bonus:
         return 'Special Bonus';
+      case TransactionType.send:
+        return 'Sent Bitcoin';
+      case TransactionType.receive:
+        return 'Received Bitcoin';
     }
   }
 
@@ -177,6 +181,28 @@ class BitcoinTransactionModel {
       bitcoinAmount: bitcoinAmount,
       bitcoinAddress: bitcoinAddress,
       createdAt: DateTime.now(),
+    );
+  }
+
+  static BitcoinTransactionModel createSendTransaction({
+    required String userId,
+    required double amount,
+    required double bitcoinAmount,
+    required String recipientAddress,
+    double? networkFee,
+  }) {
+    return BitcoinTransactionModel(
+      id: '',
+      userId: userId,
+      type: TransactionType.send,
+      amount: amount,
+      bitcoinAmount: bitcoinAmount,
+      bitcoinAddress: recipientAddress,
+      createdAt: DateTime.now(),
+      metadata: {
+        'networkFee': networkFee ?? 0.0,
+        'recipientAddress': recipientAddress,
+      },
     );
   }
 }

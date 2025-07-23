@@ -39,6 +39,15 @@ final bitcoinPriceProvider = FutureProvider<double>((ref) async {
   return await bitcoinService.getBitcoinPrice();
 });
 
+// User Bitcoin balance provider
+final userBitcoinBalanceProvider = FutureProvider<double>((ref) async {
+  final user = ref.watch(currentUserProvider).value;
+  if (user == null) return 0.0;
+
+  final bitcoinService = ref.read(bitcoinServiceProvider);
+  return await bitcoinService.getUserBitcoinBalance(user.id);
+});
+
 // Streak notifier for managing streak actions with Bitcoin integration
 class StreakNotifier extends StateNotifier<AsyncValue<UserModel?>> {
   StreakNotifier(this._firestoreService, this._bitcoinService, this._userId)
