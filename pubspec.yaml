@@ -58,8 +58,8 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
 
-  # QR Code & Camera
-  qr_code_scanner: ^1.0.1
+  # QR Code & Camera (temporarily disabled for deployment)
+  # qr_code_scanner: ^1.0.1
 
   # HTTP & API
   http: ^1.1.2
