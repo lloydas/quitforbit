@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
+import 'dart:ui';
 import '../../models/user_model.dart';
 import '../../models/achievement.dart';
 import '../../models/level_system.dart';
+import '../../models/habit_category.dart';
 import '../../widgets/common/custom_button.dart';
+import '../community/community_forum_screen.dart';
 
 class EnhancedDashboardScreen extends ConsumerStatefulWidget {
   const EnhancedDashboardScreen({super.key});
@@ -16,48 +20,90 @@ class EnhancedDashboardScreen extends ConsumerStatefulWidget {
 class _EnhancedDashboardScreenState
     extends ConsumerState<EnhancedDashboardScreen>
     with TickerProviderStateMixin {
+  late AnimationController _heroAnimationController;
+  late AnimationController _cardAnimationController;
   late AnimationController _pulseController;
-  late AnimationController _slideController;
+  late Animation<double> _heroFadeAnimation;
+  late Animation<double> _heroScaleAnimation;
+  late Animation<Offset> _cardSlideAnimation;
+  late Animation<double> _cardFadeAnimation;
   late Animation<double> _pulseAnimation;
-  late Animation<Offset> _slideAnimation;
+
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
 
   @override
   void initState() {
     super.initState();
 
-    _pulseController = AnimationController(
-      duration: const Duration(seconds: 2),
+    _heroAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1200),
       vsync: this,
-    )..repeat(reverse: true);
+    );
 
-    _slideController = AnimationController(
+    _cardAnimationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
 
+    _pulseController = AnimationController(
+      duration: const Duration(seconds: 3),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _heroFadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _heroAnimationController,
+      curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+    ));
+
+    _heroScaleAnimation = Tween<double>(
+      begin: 0.8,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _heroAnimationController,
+      curve: const Interval(0.2, 1.0, curve: Curves.elasticOut),
+    ));
+
+    _cardSlideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _cardAnimationController,
+      curve: Curves.easeOutCubic,
+    ));
+
+    _cardFadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _cardAnimationController,
+      curve: const Interval(0.2, 1.0, curve: Curves.easeOut),
+    ));
+
     _pulseAnimation = Tween<double>(
       begin: 1.0,
-      end: 1.1,
+      end: 1.08,
     ).animate(CurvedAnimation(
       parent: _pulseController,
       curve: Curves.easeInOut,
     ));
 
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _slideController,
-      curve: Curves.easeOut,
-    ));
-
-    _slideController.forward();
+    // Start animations
+    _heroAnimationController.forward();
+    Future.delayed(const Duration(milliseconds: 400), () {
+      _cardAnimationController.forward();
+    });
   }
 
   @override
   void dispose() {
+    _heroAnimationController.dispose();
+    _cardAnimationController.dispose();
     _pulseController.dispose();
-    _slideController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -65,13 +111,13 @@ class _EnhancedDashboardScreenState
   UserModel get mockUser => UserModel(
         id: 'user123',
         email: 'user@example.com',
-        displayName: 'Recovery Warrior',
+        displayName: 'Recovery Champion',
         createdAt: DateTime.now().subtract(const Duration(days: 30)),
         lastLoginAt: DateTime.now(),
         currentStreak: 14,
         longestStreak: 30,
-        totalEarned: 45.50,
-        totalBitcoinEarned: 0.00123,
+        totalEarned: 245.50,
+        totalBitcoinEarned: 0.00523,
         habitType: HabitType.smoking,
         habitStartDate: DateTime.now().subtract(const Duration(days: 14)),
         selectedTriggers: [
@@ -81,7 +127,7 @@ class _EnhancedDashboardScreenState
         ],
         selectedAlternatives: ['Deep breathing', 'Chew gum', 'Go for a walk'],
         dailyGoalStreak: 365,
-        totalXP: 1250,
+        totalXP: 2450,
         achievements: [
           UserAchievement(
             achievementId: 'first_day',
@@ -90,6 +136,11 @@ class _EnhancedDashboardScreenState
           UserAchievement(
             achievementId: 'week_warrior',
             unlockedAt: DateTime.now().subtract(const Duration(days: 7)),
+            isNew: true,
+          ),
+          UserAchievement(
+            achievementId: 'streak_legend',
+            unlockedAt: DateTime.now().subtract(const Duration(hours: 2)),
             isNew: true,
           ),
         ],
@@ -109,202 +160,453 @@ class _EnhancedDashboardScreenState
             assignedDate: DateTime.now(),
           ),
         ],
-        helpsGiven: 3,
-        likesReceived: 12,
-        journalEntries: 8,
+        helpsGiven: 28,
+        likesReceived: 142,
+        journalEntries: 24,
       );
 
   @override
   Widget build(BuildContext context) {
-    final user = mockUser; // In real app, get from provider
+    final user = mockUser;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E27),
-      body: SlideTransition(
-        position: _slideAnimation,
-        child: CustomScrollView(
-          slivers: [
-            // App Bar with level display
-            _buildSliverAppBar(user),
-
-            // Content
-            SliverPadding(
-              padding: const EdgeInsets.all(20),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  // New achievements notification
-                  if (user.newAchievements.isNotEmpty)
-                    _buildNewAchievementsBanner(user),
-
-                  const SizedBox(height: 20),
-
-                  // Main stats cards
-                  _buildStatsGrid(user),
-
-                  const SizedBox(height: 24),
-
-                  // Daily challenges
-                  _buildDailyChallengesSection(user),
-
-                  const SizedBox(height: 24),
-
-                  // Habit-specific content
-                  _buildHabitSpecificSection(user),
-
-                  const SizedBox(height: 24),
-
-                  // Recent achievements
-                  _buildRecentAchievements(user),
-
-                  const SizedBox(height: 24),
-
-                  // Social features preview
-                  _buildSocialPreview(user),
-
-                  const SizedBox(height: 24),
-
-                  // Motivational section
-                  _buildMotivationalSection(user),
-
-                  const SizedBox(height: 100), // Bottom padding
-                ]),
-              ),
-            ),
-          ],
-        ),
-      ),
+      backgroundColor: const Color(0xFF0A0B0D),
+      extendBodyBehindAppBar: true,
+      appBar: _buildAppBar(user),
+      body: _buildBody(user),
       floatingActionButton: _buildFloatingActionButton(user),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 
-  Widget _buildSliverAppBar(UserModel user) {
-    final userLevel = user.userLevel;
-    final habitCategory = user.habitCategory;
-
-    return SliverAppBar(
-      expandedHeight: 160,
-      floating: false,
-      pinned: true,
-      backgroundColor: habitCategory?.primaryColor ?? const Color(0xFF1E293B),
-      flexibleSpace: FlexibleSpaceBar(
-        title: Text(
-          'Level ${userLevel.level} ${userLevel.title}',
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
-        ),
-        background: Container(
+  PreferredSizeWidget _buildAppBar(UserModel user) {
+    return AppBar(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      systemOverlayStyle: SystemUiOverlayStyle.light,
+      leading: IconButton(
+        icon: Container(
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                habitCategory?.primaryColor ?? const Color(0xFF1E293B),
-                habitCategory?.accentColor ?? const Color(0xFF334155),
-              ],
+            color: Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.1),
             ),
           ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
-            child: Row(
-              children: [
-                // Level icon
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    userLevel.icon,
-                    color: Colors.white,
-                    size: 32,
-                  ),
-                ),
-                const SizedBox(width: 16),
-
-                // XP progress
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '${user.totalXP} XP',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-
-                      // XP Progress bar
-                      Container(
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: FractionallySizedBox(
-                          alignment: Alignment.centerLeft,
-                          widthFactor: userLevel.progressPercentage,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${userLevel.xpToNext} XP to next level',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+          child: const Icon(
+            Icons.menu_rounded,
+            color: Colors.white,
+            size: 20,
           ),
         ),
+        onPressed: () {},
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.emoji_events),
-          onPressed: () => _showAchievementsBottomSheet(),
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.1),
+              ),
+            ),
+            child: Stack(
+              children: [
+                const Icon(
+                  Icons.notifications_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                if (user.newAchievements.isNotEmpty)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFFF6B35),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          onPressed: () => _showNotifications(),
         ),
-        IconButton(
-          icon: const Icon(Icons.settings),
-          onPressed: () => Navigator.pushNamed(context, '/settings'),
+        const SizedBox(width: 8),
+        Padding(
+          padding: const EdgeInsets.only(right: 16),
+          child: GestureDetector(
+            onTap: () => _showProfile(),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    user.habitCategory?.primaryColor ?? const Color(0xFF6366F1),
+                    user.habitCategory?.accentColor ?? const Color(0xFF8B5CF6),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.2),
+                  width: 2,
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  user.displayName?[0].toUpperCase() ?? 'U',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildNewAchievementsBanner(UserModel user) {
-    final newAchievements = user.newAchievements;
+  Widget _buildBody(UserModel user) {
+    return Container(
+      decoration: _buildBackgroundGradient(user),
+      child: SafeArea(
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            // Hero Section
+            SliverToBoxAdapter(
+              child: AnimatedBuilder(
+                animation: _heroAnimationController,
+                builder: (context, child) {
+                  return FadeTransition(
+                    opacity: _heroFadeAnimation,
+                    child: ScaleTransition(
+                      scale: _heroScaleAnimation,
+                      child: _buildHeroSection(user),
+                    ),
+                  );
+                },
+              ),
+            ),
 
+            // Main Content
+            SliverToBoxAdapter(
+              child: AnimatedBuilder(
+                animation: _cardAnimationController,
+                builder: (context, child) {
+                  return SlideTransition(
+                    position: _cardSlideAnimation,
+                    child: FadeTransition(
+                      opacity: _cardFadeAnimation,
+                      child: _buildMainContent(user),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  BoxDecoration _buildBackgroundGradient(UserModel user) {
+    final primaryColor =
+        user.habitCategory?.primaryColor ?? const Color(0xFF6366F1);
+    final accentColor =
+        user.habitCategory?.accentColor ?? const Color(0xFF8B5CF6);
+
+    return BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          const Color(0xFF0A0B0D),
+          primaryColor.withOpacity(0.1),
+          const Color(0xFF0A0B0D),
+          accentColor.withOpacity(0.08),
+          const Color(0xFF0A0B0D),
+        ],
+        stops: const [0.0, 0.2, 0.5, 0.8, 1.0],
+      ),
+    );
+  }
+
+  Widget _buildHeroSection(UserModel user) {
+    final userLevel = user.userLevel;
+    final habitCategory = user.habitCategory;
+
+    return Container(
+      margin: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Welcome Text
+          Text(
+            'Welcome back,',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.8),
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            user.displayName ?? 'Recovery Champion',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Level Progress Card
+          _buildGlassMorphicCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            userLevel.color,
+                            userLevel.color.withOpacity(0.7),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: userLevel.color.withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        userLevel.icon,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Level ${userLevel.level}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            userLevel.title,
+                            style: TextStyle(
+                              color: userLevel.color,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${user.totalXP}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'Total XP',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.7),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                // XP Progress
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Progress to Level ${userLevel.level + 1}',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          '${userLevel.xpToNext} XP to go',
+                          style: TextStyle(
+                            color: userLevel.color,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Stack(
+                        children: [
+                          FractionallySizedBox(
+                            alignment: Alignment.centerLeft,
+                            widthFactor: userLevel.progressPercentage,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    userLevel.color,
+                                    userLevel.color.withOpacity(0.8),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(4),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: userLevel.color.withOpacity(0.4),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainContent(UserModel user) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        children: [
+          // New Achievements Banner
+          if (user.newAchievements.isNotEmpty) ...[
+            _buildNewAchievementsBanner(user),
+            const SizedBox(height: 20),
+          ],
+
+          // Stats Overview
+          _buildStatsOverview(user),
+          const SizedBox(height: 24),
+
+          // Today's Focus
+          _buildTodaysFocus(user),
+          const SizedBox(height: 24),
+
+          // Quick Actions
+          _buildQuickActions(user),
+          const SizedBox(height: 24),
+
+          // Community Insights
+          _buildCommunityInsights(user),
+          const SizedBox(height: 24),
+
+          // Habit Journey
+          _buildHabitJourney(user),
+          const SizedBox(height: 100),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGlassMorphicCard({
+    required Widget child,
+    EdgeInsets? padding,
+    Color? borderColor,
+  }) {
+    return Container(
+      padding: padding ?? const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: borderColor ?? Colors.white.withOpacity(0.1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNewAchievementsBanner(UserModel user) {
     return AnimatedBuilder(
       animation: _pulseAnimation,
       builder: (context, child) {
         return Transform.scale(
           scale: _pulseAnimation.value,
           child: Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
+                colors: [
+                  Color(0xFFFFD700),
+                  Color(0xFFFF8A00),
+                ],
               ),
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFFFFD700).withOpacity(0.3),
+                  color: const Color(0xFFFFD700).withOpacity(0.4),
                   blurRadius: 20,
                   offset: const Offset(0, 8),
                 ),
@@ -312,10 +614,18 @@ class _EnhancedDashboardScreenState
             ),
             child: Row(
               children: [
-                const Icon(
-                  Icons.stars,
-                  color: Color(0xFF0A0E27),
-                  size: 32,
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.stars_rounded,
+                    color: Colors.white,
+                    size: 24,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -323,30 +633,39 @@ class _EnhancedDashboardScreenState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'New Achievement Unlocked!',
+                        '🎉 Achievement Unlocked!',
                         style: TextStyle(
-                          color: Color(0xFF0A0E27),
-                          fontSize: 18,
+                          color: Colors.white,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                      const SizedBox(height: 4),
                       Text(
-                        '${newAchievements.length} new badge${newAchievements.length == 1 ? '' : 's'} earned',
-                        style: const TextStyle(
-                          color: Color(0xFF0A0E27),
+                        '${user.newAchievements.length} new badge${user.newAchievements.length == 1 ? '' : 's'} earned',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
                           fontSize: 14,
                         ),
                       ),
                     ],
                   ),
                 ),
-                ElevatedButton(
-                  onPressed: () => _showAchievementsBottomSheet(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0A0E27),
-                    foregroundColor: Colors.white,
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Text('View'),
+                  child: const Text(
+                    'View',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -356,186 +675,157 @@ class _EnhancedDashboardScreenState
     );
   }
 
-  Widget _buildStatsGrid(UserModel user) {
-    return GridView.count(
-      crossAxisCount: 2,
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 1.1,
-      children: [
-        _buildStatCard(
-          'Current Streak',
-          '${user.currentStreak}',
-          'days clean',
-          Icons.local_fire_department,
-          const Color(0xFFFF5722),
-          onTap: () => _showStreakDetails(user),
-        ),
-        _buildStatCard(
-          'Total Earned',
-          '\$${user.totalEarned.toStringAsFixed(0)}',
-          '${(user.totalBitcoinEarned * 1000000).toStringAsFixed(0)} sats',
-          Icons.currency_bitcoin,
-          const Color(0xFFF7931A),
-          onTap: () => Navigator.pushNamed(context, '/wallet'),
-        ),
-        _buildStatCard(
-          'Level Progress',
-          'Level ${user.userLevel.level}',
-          '${user.userLevel.xpToNext} XP to go',
-          user.userLevel.icon,
-          user.userLevel.color,
-          onTap: () => _showLevelDetails(user),
-        ),
-        _buildStatCard(
-          'Achievements',
-          '${user.achievements.length}',
-          'badges earned',
-          Icons.emoji_events,
-          const Color(0xFFFFD700),
-          onTap: () => _showAchievementsBottomSheet(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatCard(
-    String title,
-    String mainValue,
-    String subValue,
-    IconData icon,
-    Color color, {
-    VoidCallback? onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.1),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Icon(icon, color: color, size: 28),
-                if (onTap != null)
-                  Icon(
-                    Icons.arrow_forward_ios,
-                    color: Colors.white.withOpacity(0.5),
-                    size: 16,
-                  ),
-              ],
-            ),
-            const Spacer(),
-            Text(
-              mainValue,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subValue,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
-                fontSize: 12,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.8),
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDailyChallengesSection(UserModel user) {
-    final todaysChallenges = user.todaysChallenges;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Today\'s Challenges',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pushNamed(context, '/challenges'),
-              child: const Text('View All'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        if (todaysChallenges.isEmpty)
-          _buildNoChallengesCard()
-        else
-          Column(
-            children: todaysChallenges
-                .map((challenge) => _buildChallengeCard(challenge))
-                .toList(),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildNoChallengesCard() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
+  Widget _buildStatsOverview(UserModel user) {
+    return _buildGlassMorphicCard(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.task_alt,
-            color: Colors.white.withOpacity(0.5),
-            size: 48,
-          ),
-          const SizedBox(height: 16),
           const Text(
-            'No challenges today',
+            'Your Progress',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'New challenges will be available tomorrow',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontSize: 14,
-            ),
-            textAlign: TextAlign.center,
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatItem(
+                  '${user.currentStreak}',
+                  'Days Clean',
+                  Icons.local_fire_department_rounded,
+                  const Color(0xFFFF6B35),
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 60,
+                color: Colors.white.withOpacity(0.1),
+              ),
+              Expanded(
+                child: _buildStatItem(
+                  '\$${user.totalEarned.toStringAsFixed(0)}',
+                  'Earned',
+                  Icons.currency_bitcoin_rounded,
+                  const Color(0xFFF7931A),
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 60,
+                color: Colors.white.withOpacity(0.1),
+              ),
+              Expanded(
+                child: _buildStatItem(
+                  '${user.achievements.length}',
+                  'Badges',
+                  Icons.emoji_events_rounded,
+                  const Color(0xFFFFD700),
+                ),
+              ),
+            ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(
+      String value, String label, IconData icon, Color color) {
+    return Column(
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: color.withOpacity(0.2),
+            ),
+          ),
+          child: Icon(
+            icon,
+            color: color,
+            size: 24,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.7),
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTodaysFocus(UserModel user) {
+    final todaysChallenges = user.todaysChallenges.take(2).toList();
+
+    return _buildGlassMorphicCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Today\'s Focus',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4CAF50).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: const Color(0xFF4CAF50).withOpacity(0.3),
+                  ),
+                ),
+                child: Text(
+                  '${user.completedChallengesCount}/${todaysChallenges.length} Complete',
+                  style: const TextStyle(
+                    color: Color(0xFF4CAF50),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          if (todaysChallenges.isEmpty)
+            _buildEmptyState(
+              icon: Icons.task_alt_rounded,
+              title: 'All challenges completed!',
+              subtitle: 'Great job! New challenges tomorrow.',
+            )
+          else
+            Column(
+              children: todaysChallenges
+                  .map((challenge) => _buildChallengeCard(challenge))
+                  .toList(),
+            ),
         ],
       ),
     );
@@ -546,430 +836,177 @@ class _EnhancedDashboardScreenState
     if (challenge == null) return const SizedBox();
 
     final progress = userChallenge.getProgressPercentage();
+    final isCompleted = userChallenge.isCompleted;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(16),
+        color: isCompleted
+            ? const Color(0xFF4CAF50).withOpacity(0.1)
+            : Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: userChallenge.isCompleted
-              ? const Color(0xFF4CAF50)
+          color: isCompleted
+              ? const Color(0xFF4CAF50).withOpacity(0.3)
               : Colors.white.withOpacity(0.1),
         ),
       ),
       child: Row(
         children: [
-          // Challenge icon
           Container(
-            padding: const EdgeInsets.all(12),
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
               color: challenge.color.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
-              challenge.icon,
-              color: challenge.color,
-              size: 24,
+              isCompleted ? Icons.check_rounded : challenge.icon,
+              color: isCompleted ? const Color(0xFF4CAF50) : challenge.color,
+              size: 20,
             ),
           ),
           const SizedBox(width: 16),
-
-          // Challenge content
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        challenge.title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    if (userChallenge.isCompleted)
-                      const Icon(
-                        Icons.check_circle,
-                        color: Color(0xFF4CAF50),
-                        size: 20,
-                      ),
-                  ],
+                Text(
+                  challenge.title,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    decoration: isCompleted ? TextDecoration.lineThrough : null,
+                  ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  challenge.description,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // Progress bar
-                if (!userChallenge.isCompleted)
-                  Column(
-                    children: [
-                      LinearProgressIndicator(
-                        value: progress,
-                        backgroundColor: Colors.white.withOpacity(0.1),
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(challenge.color),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '${(progress * 100).toInt()}% complete',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.6),
-                              fontSize: 12,
-                            ),
-                          ),
-                          Text(
-                            '+${challenge.xpReward} XP',
-                            style: const TextStyle(
-                              color: Color(0xFFF7931A),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHabitSpecificSection(UserModel user) {
-    final habitCategory = user.habitCategory;
-    if (habitCategory == null) return const SizedBox();
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            habitCategory.primaryColor.withOpacity(0.1),
-            habitCategory.accentColor.withOpacity(0.1),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: habitCategory.primaryColor.withOpacity(0.3),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                habitCategory.icon,
-                color: habitCategory.primaryColor,
-                size: 28,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  habitCategory.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Quote of the day
-          if (user.motivationalQuote != null) ...[
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                if (!isCompleted) ...[
                   Text(
-                    'Daily Motivation',
+                    challenge.description,
                     style: TextStyle(
-                      color: habitCategory.primaryColor,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 12,
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    '"${user.motivationalQuote}"',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontStyle: FontStyle.italic,
-                    ),
+                  LinearProgressIndicator(
+                    value: progress,
+                    backgroundColor: Colors.white.withOpacity(0.1),
+                    valueColor: AlwaysStoppedAnimation<Color>(challenge.color),
+                    minHeight: 4,
                   ),
                 ],
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-
-          // Health benefit
-          Row(
-            children: [
-              Icon(
-                Icons.favorite,
-                color: habitCategory.accentColor,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  habitCategory.healthBenefit,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          // Financial benefit
-          Row(
-            children: [
-              const Icon(
-                Icons.savings,
-                color: Color(0xFFF7931A),
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  habitCategory.financialSaving,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRecentAchievements(UserModel user) {
-    final recentAchievements = user.achievements.take(3).toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Recent Achievements',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            TextButton(
-              onPressed: () => _showAchievementsBottomSheet(),
-              child: const Text('View All'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        if (recentAchievements.isEmpty)
-          _buildNoAchievementsCard()
-        else
-          Column(
-            children: recentAchievements
-                .map(
-                    (userAchievement) => _buildAchievementCard(userAchievement))
-                .toList(),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildNoAchievementsCard() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            Icons.emoji_events,
-            color: Colors.white.withOpacity(0.5),
-            size: 48,
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'No achievements yet',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Complete your first day to earn your first badge!',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontSize: 14,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAchievementCard(UserAchievement userAchievement) {
-    final achievement = userAchievement.achievement;
-    if (achievement == null) return const SizedBox();
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: achievement.rarityColor.withOpacity(0.3),
-        ),
-      ),
-      child: Row(
-        children: [
-          // Achievement icon with rarity border
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: achievement.color.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: achievement.rarityColor,
-                width: 2,
-              ),
-            ),
-            child: Icon(
-              achievement.icon,
-              color: achievement.color,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 16),
-
-          // Achievement content
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        achievement.title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    if (userAchievement.isNew)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFF5722),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          'NEW!',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  achievement.description,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      achievement.rarityText,
-                      style: TextStyle(
-                        color: achievement.rarityColor,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      '+${achievement.xpReward} XP',
-                      style: const TextStyle(
-                        color: Color(0xFFF7931A),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),
+          Text(
+            '+${challenge.xpReward} XP',
+            style: TextStyle(
+              color: isCompleted
+                  ? const Color(0xFF4CAF50)
+                  : const Color(0xFFF7931A),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildSocialPreview(UserModel user) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+  Widget _buildQuickActions(UserModel user) {
+    return _buildGlassMorphicCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Quick Actions',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: _buildActionButton(
+                  'Community',
+                  Icons.people_rounded,
+                  const Color(0xFF6366F1),
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CommunityForumScreen(),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildActionButton(
+                  'Analytics',
+                  Icons.bar_chart_rounded,
+                  const Color(0xFF8B5CF6),
+                  () => _showAnalytics(),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildActionButton(
+                  'Wallet',
+                  Icons.account_balance_wallet_rounded,
+                  const Color(0xFFF7931A),
+                  () => _navigateToWallet(),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildActionButton(
+      String label, IconData icon, Color color, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: color.withOpacity(0.2),
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: color,
+              size: 24,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCommunityInsights(UserModel user) {
+    return _buildGlassMorphicCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -977,37 +1014,60 @@ class _EnhancedDashboardScreenState
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Community',
+                'Community Impact',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              TextButton(
-                onPressed: () => Navigator.pushNamed(context, '/community'),
-                child: const Text('View All'),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Active Helper',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           Row(
             children: [
               Expanded(
                 child: _buildSocialStat(
-                  'Helps Given',
                   '${user.helpsGiven}',
-                  Icons.helping_hand,
-                  const Color(0xFF4CAF50),
+                  'Helps Given',
+                  Icons.favorite_rounded,
+                  const Color(0xFFFF6B6B),
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: _buildSocialStat(
-                  'Likes Received',
                   '${user.likesReceived}',
-                  Icons.thumb_up,
-                  const Color(0xFF2196F3),
+                  'Likes Received',
+                  Icons.thumb_up_rounded,
+                  const Color(0xFF4ECDC4),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildSocialStat(
+                  '${user.journalEntries}',
+                  'Journal Entries',
+                  Icons.edit_note_rounded,
+                  const Color(0xFFFFBE0B),
                 ),
               ),
             ],
@@ -1018,156 +1078,247 @@ class _EnhancedDashboardScreenState
   }
 
   Widget _buildSocialStat(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: color.withOpacity(0.3),
+      String value, String label, IconData icon, Color color) {
+    return Column(
+      children: [
+        Icon(
+          icon,
+          color: color,
+          size: 20,
         ),
-      ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.7),
+            fontSize: 10,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHabitJourney(UserModel user) {
+    final habitCategory = user.habitCategory;
+    if (habitCategory == null) return const SizedBox();
+
+    return _buildGlassMorphicCard(
+      borderColor: habitCategory.primaryColor.withOpacity(0.3),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      habitCategory.primaryColor,
+                      habitCategory.accentColor,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  habitCategory.icon,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      habitCategory.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'Day ${user.currentStreak} of your journey',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          Text(
-            title,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontSize: 12,
+
+          const SizedBox(height: 20),
+
+          // Daily motivation
+          if (user.motivationalQuote != null)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: habitCategory.primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: habitCategory.primaryColor.withOpacity(0.2),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Today\'s Motivation',
+                    style: TextStyle(
+                      color: habitCategory.primaryColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '"${user.motivationalQuote}"',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            textAlign: TextAlign.center,
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildMotivationalSection(UserModel user) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            const Color(0xFF9C27B0).withOpacity(0.2),
-            const Color(0xFF673AB7).withOpacity(0.2),
-          ],
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Column(
+      children: [
+        Icon(
+          icon,
+          color: Colors.white.withOpacity(0.5),
+          size: 48,
         ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFF9C27B0).withOpacity(0.3),
+        const SizedBox(height: 16),
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
         ),
-      ),
-      child: Column(
-        children: [
-          const Icon(
-            Icons.rocket_launch,
-            color: Color(0xFF9C27B0),
-            size: 48,
+        const SizedBox(height: 8),
+        Text(
+          subtitle,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.7),
+            fontSize: 14,
           ),
-          const SizedBox(height: 16),
-          const Text(
-            'Keep Going!',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'You\'re ${user.daysToNextMilestone} days away from your next milestone!',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
-              fontSize: 16,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          CustomButton(
-            text: 'View Progress',
-            onPressed: () => _showProgressDetails(user),
-            isLoading: false,
-          ),
-        ],
-      ),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 
   Widget _buildFloatingActionButton(UserModel user) {
-    return FloatingActionButton.extended(
-      onPressed: user.canCheckIn ? () => _performDailyCheckIn(user) : null,
-      backgroundColor: user.canCheckIn ? const Color(0xFFF7931A) : Colors.grey,
-      icon: Icon(
-        user.canCheckIn ? Icons.check_circle : Icons.check_circle_outline,
-        color: Colors.white,
-      ),
-      label: Text(
-        user.canCheckIn ? 'Check In' : 'Checked In',
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      child: FloatingActionButton.extended(
+        onPressed: user.canCheckIn ? () => _performDailyCheckIn(user) : null,
+        backgroundColor: user.canCheckIn
+            ? const Color(0xFF4CAF50)
+            : Colors.grey.withOpacity(0.3),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        label: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                user.canCheckIn
+                    ? Icons.check_circle_rounded
+                    : Icons.check_circle_outline_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                user.canCheckIn
+                    ? 'Complete Daily Check-in'
+                    : 'Already Checked In Today',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   // Action methods
-  void _showAchievementsBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF0A0E27),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: const Column(
-          children: [
-            Text(
-              'Achievements',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            // Add achievements list here
-          ],
-        ),
-      ),
-    );
+  void _showNotifications() {
+    // Show notifications
   }
 
-  void _showStreakDetails(UserModel user) {
-    // Show streak details dialog
+  void _showProfile() {
+    // Show user profile
   }
 
-  void _showLevelDetails(UserModel user) {
-    // Show level progression dialog
+  void _showAnalytics() {
+    // Show analytics screen
   }
 
-  void _showProgressDetails(UserModel user) {
-    // Show detailed progress view
+  void _navigateToWallet() {
+    // Navigate to wallet
   }
 
   void _performDailyCheckIn(UserModel user) {
-    // Perform daily check-in logic
+    HapticFeedback.lightImpact();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Daily check-in completed! +50 XP earned'),
-        backgroundColor: Color(0xFF4CAF50),
+      SnackBar(
+        content: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.white),
+            SizedBox(width: 12),
+            Text(
+              'Daily check-in completed! +50 XP earned',
+              style:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF4CAF50),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        margin: const EdgeInsets.all(20),
       ),
     );
   }
