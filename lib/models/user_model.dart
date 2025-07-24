@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'habit_category.dart';
+import 'achievement.dart';
+import 'level_system.dart';
 
 class UserModel {
   final String id;
@@ -19,7 +21,7 @@ class UserModel {
   final List<String> paidMilestones;
   final Map<String, dynamic> preferences;
 
-  // New habit category fields
+  // Habit category fields
   final HabitType? habitType;
   final DateTime? habitStartDate;
   final String? customHabitName; // For custom habits
@@ -28,6 +30,19 @@ class UserModel {
   final List<String>
       selectedAlternatives; // User's chosen replacement activities
   final int dailyGoalStreak; // Target streak length
+
+  // Gamification fields
+  final int totalXP; // Total experience points earned
+  final List<UserAchievement> achievements; // Unlocked achievements
+  final List<UserChallenge>
+      dailyChallenges; // Current and past daily challenges
+  final Map<String, int> socialStats; // Social interaction stats
+  final DateTime? lastDailyChallenge; // When last daily challenge was assigned
+  final int helpsGiven; // Number of times user helped others
+  final int likesReceived; // Likes received on posts/comments
+  final int journalEntries; // Number of journal entries
+  final int healthLogs; // Number of health tracking entries
+  final int articlesRead; // Educational articles read
 
   UserModel({
     required this.id,
@@ -46,7 +61,7 @@ class UserModel {
     this.onboardingData = const {},
     this.paidMilestones = const [],
     this.preferences = const {},
-    // New habit category fields
+    // Habit category fields
     this.habitType,
     this.habitStartDate,
     this.customHabitName,
@@ -54,6 +69,17 @@ class UserModel {
     this.selectedTriggers = const [],
     this.selectedAlternatives = const [],
     this.dailyGoalStreak = 365, // Default to 1 year goal
+    // Gamification fields
+    this.totalXP = 0,
+    this.achievements = const [],
+    this.dailyChallenges = const [],
+    this.socialStats = const {},
+    this.lastDailyChallenge,
+    this.helpsGiven = 0,
+    this.likesReceived = 0,
+    this.journalEntries = 0,
+    this.healthLogs = 0,
+    this.articlesRead = 0,
   });
 
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
@@ -77,7 +103,7 @@ class UserModel {
       onboardingData: Map<String, dynamic>.from(data['onboardingData'] ?? {}),
       paidMilestones: List<String>.from(data['paidMilestones'] ?? []),
       preferences: Map<String, dynamic>.from(data['preferences'] ?? {}),
-      // New habit category fields
+      // Habit category fields
       habitType: data['habitType'] != null
           ? HabitType.values.byName(data['habitType'])
           : null,
@@ -90,6 +116,24 @@ class UserModel {
       selectedAlternatives:
           List<String>.from(data['selectedAlternatives'] ?? []),
       dailyGoalStreak: data['dailyGoalStreak'] ?? 365,
+      // Gamification fields
+      totalXP: data['totalXP'] ?? 0,
+      achievements: (data['achievements'] as List<dynamic>? ?? [])
+          .map((a) =>
+              UserAchievement.fromFirestore(Map<String, dynamic>.from(a)))
+          .toList(),
+      dailyChallenges: (data['dailyChallenges'] as List<dynamic>? ?? [])
+          .map((c) => UserChallenge.fromFirestore(Map<String, dynamic>.from(c)))
+          .toList(),
+      socialStats: Map<String, int>.from(data['socialStats'] ?? {}),
+      lastDailyChallenge: data['lastDailyChallenge'] != null
+          ? (data['lastDailyChallenge'] as Timestamp).toDate()
+          : null,
+      helpsGiven: data['helpsGiven'] ?? 0,
+      likesReceived: data['likesReceived'] ?? 0,
+      journalEntries: data['journalEntries'] ?? 0,
+      healthLogs: data['healthLogs'] ?? 0,
+      articlesRead: data['articlesRead'] ?? 0,
     );
   }
 
@@ -111,7 +155,7 @@ class UserModel {
       'onboardingData': onboardingData,
       'paidMilestones': paidMilestones,
       'preferences': preferences,
-      // New habit category fields
+      // Habit category fields
       'habitType': habitType?.name,
       'habitStartDate':
           habitStartDate != null ? Timestamp.fromDate(habitStartDate!) : null,
@@ -120,6 +164,19 @@ class UserModel {
       'selectedTriggers': selectedTriggers,
       'selectedAlternatives': selectedAlternatives,
       'dailyGoalStreak': dailyGoalStreak,
+      // Gamification fields
+      'totalXP': totalXP,
+      'achievements': achievements.map((a) => a.toFirestore()).toList(),
+      'dailyChallenges': dailyChallenges.map((c) => c.toFirestore()).toList(),
+      'socialStats': socialStats,
+      'lastDailyChallenge': lastDailyChallenge != null
+          ? Timestamp.fromDate(lastDailyChallenge!)
+          : null,
+      'helpsGiven': helpsGiven,
+      'likesReceived': likesReceived,
+      'journalEntries': journalEntries,
+      'healthLogs': healthLogs,
+      'articlesRead': articlesRead,
     };
   }
 
@@ -138,7 +195,7 @@ class UserModel {
     Map<String, dynamic>? onboardingData,
     List<String>? paidMilestones,
     Map<String, dynamic>? preferences,
-    // New habit category fields
+    // Habit category fields
     HabitType? habitType,
     DateTime? habitStartDate,
     String? customHabitName,
@@ -146,6 +203,17 @@ class UserModel {
     List<String>? selectedTriggers,
     List<String>? selectedAlternatives,
     int? dailyGoalStreak,
+    // Gamification fields
+    int? totalXP,
+    List<UserAchievement>? achievements,
+    List<UserChallenge>? dailyChallenges,
+    Map<String, int>? socialStats,
+    DateTime? lastDailyChallenge,
+    int? helpsGiven,
+    int? likesReceived,
+    int? journalEntries,
+    int? healthLogs,
+    int? articlesRead,
   }) {
     return UserModel(
       id: id,
@@ -164,7 +232,7 @@ class UserModel {
       onboardingData: onboardingData ?? this.onboardingData,
       paidMilestones: paidMilestones ?? this.paidMilestones,
       preferences: preferences ?? this.preferences,
-      // New habit category fields
+      // Habit category fields
       habitType: habitType ?? this.habitType,
       habitStartDate: habitStartDate ?? this.habitStartDate,
       customHabitName: customHabitName ?? this.customHabitName,
@@ -173,6 +241,17 @@ class UserModel {
       selectedTriggers: selectedTriggers ?? this.selectedTriggers,
       selectedAlternatives: selectedAlternatives ?? this.selectedAlternatives,
       dailyGoalStreak: dailyGoalStreak ?? this.dailyGoalStreak,
+      // Gamification fields
+      totalXP: totalXP ?? this.totalXP,
+      achievements: achievements ?? this.achievements,
+      dailyChallenges: dailyChallenges ?? this.dailyChallenges,
+      socialStats: socialStats ?? this.socialStats,
+      lastDailyChallenge: lastDailyChallenge ?? this.lastDailyChallenge,
+      helpsGiven: helpsGiven ?? this.helpsGiven,
+      likesReceived: likesReceived ?? this.likesReceived,
+      journalEntries: journalEntries ?? this.journalEntries,
+      healthLogs: healthLogs ?? this.healthLogs,
+      articlesRead: articlesRead ?? this.articlesRead,
     );
   }
 
@@ -190,7 +269,7 @@ class UserModel {
 
   bool get canCheckIn => !hasCheckedInToday;
 
-  // New habit category helper methods
+  // Habit category helper methods
   HabitCategory? get habitCategory {
     if (habitType == null) return null;
     return HabitCategory.getByType(habitType!);
@@ -278,5 +357,120 @@ class UserModel {
     final index =
         (now.day + now.month + now.year) % category.motivationalQuotes.length;
     return category.motivationalQuotes[index];
+  }
+
+  // === GAMIFICATION HELPER METHODS ===
+
+  /// Get user's current level based on XP
+  UserLevel get userLevel {
+    return UserLevel.fromTotalXP(totalXP);
+  }
+
+  /// Get new achievements that user has unlocked but hasn't seen yet
+  List<UserAchievement> get newAchievements {
+    return achievements.where((a) => a.isNew).toList();
+  }
+
+  /// Get today's daily challenges
+  List<UserChallenge> get todaysChallenges {
+    final today = DateTime.now();
+    return dailyChallenges.where((c) {
+      final assignedDate = c.assignedDate;
+      return assignedDate.year == today.year &&
+          assignedDate.month == today.month &&
+          assignedDate.day == today.day;
+    }).toList();
+  }
+
+  /// Get completed challenges count
+  int get completedChallengesCount {
+    return dailyChallenges.where((c) => c.isCompleted).length;
+  }
+
+  /// Check if user needs new daily challenges
+  bool get needsNewDailyChallenges {
+    if (lastDailyChallenge == null) return true;
+    final today = DateTime.now();
+    final lastChallenge = lastDailyChallenge!;
+    return today.year != lastChallenge.year ||
+        today.month != lastChallenge.month ||
+        today.day != lastChallenge.day;
+  }
+
+  /// Get user stats for achievement checking
+  Map<String, dynamic> get userStats {
+    return {
+      'streak_days': currentStreak,
+      'total_btc_earned': totalBitcoinEarned,
+      'total_usd_earned': totalEarned,
+      'helps_given': helpsGiven,
+      'likes_received': likesReceived,
+      'daily_challenges_completed': completedChallengesCount,
+      'health_logs': healthLogs,
+      'journal_entries': journalEntries,
+      'articles_read': articlesRead,
+      'comebacks': socialStats['comebacks'] ?? 0,
+      'joined_before': createdAt.toIso8601String(),
+    };
+  }
+
+  /// Check what achievements user has newly unlocked
+  List<Achievement> checkNewAchievements() {
+    final allAchievements = Achievement.getAllAchievements();
+    final unlockedIds = achievements.map((a) => a.achievementId).toSet();
+    final stats = userStats;
+
+    return allAchievements.where((achievement) {
+      return !unlockedIds.contains(achievement.id) &&
+          achievement.checkCriteria(stats);
+    }).toList();
+  }
+
+  /// Get achievement progress for not-yet-unlocked achievements
+  Map<String, double> get achievementProgress {
+    final allAchievements = Achievement.getAllAchievements();
+    final unlockedIds = achievements.map((a) => a.achievementId).toSet();
+    final stats = userStats;
+    final progress = <String, double>{};
+
+    for (var achievement in allAchievements) {
+      if (!unlockedIds.contains(achievement.id) && !achievement.isHidden) {
+        // Calculate progress for this achievement
+        double totalProgress = 0.0;
+        int criteriaCount = achievement.criteria.length;
+
+        for (var criterion in achievement.criteria.entries) {
+          final key = criterion.key;
+          final required = criterion.value;
+          final userValue = stats[key] ?? 0;
+
+          if (required is num && userValue is num) {
+            final criterionProgress = (userValue / required).clamp(0.0, 1.0);
+            totalProgress += criterionProgress;
+          } else {
+            totalProgress += userValue == required ? 1.0 : 0.0;
+          }
+        }
+
+        progress[achievement.id] =
+            criteriaCount > 0 ? totalProgress / criteriaCount : 0.0;
+      }
+    }
+
+    return progress;
+  }
+
+  /// Get total potential XP from all achievements
+  int get totalPotentialXP {
+    return Achievement.getAllAchievements()
+        .fold(0, (sum, achievement) => sum + achievement.xpReward);
+  }
+
+  /// Get XP earned from achievements
+  int get achievementXP {
+    return achievements.fold(0, (sum, userAchievement) {
+      final achievement = userAchievement.achievement;
+      return sum + (achievement?.xpReward ?? 0);
+    });
   }
 }
