@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'habit_category.dart';
 
 class UserModel {
   final String id;
@@ -18,6 +19,16 @@ class UserModel {
   final List<String> paidMilestones;
   final Map<String, dynamic> preferences;
 
+  // New habit category fields
+  final HabitType? habitType;
+  final DateTime? habitStartDate;
+  final String? customHabitName; // For custom habits
+  final String? customHabitDescription; // For custom habits
+  final List<String> selectedTriggers; // User's identified triggers
+  final List<String>
+      selectedAlternatives; // User's chosen replacement activities
+  final int dailyGoalStreak; // Target streak length
+
   UserModel({
     required this.id,
     required this.email,
@@ -35,6 +46,14 @@ class UserModel {
     this.onboardingData = const {},
     this.paidMilestones = const [],
     this.preferences = const {},
+    // New habit category fields
+    this.habitType,
+    this.habitStartDate,
+    this.customHabitName,
+    this.customHabitDescription,
+    this.selectedTriggers = const [],
+    this.selectedAlternatives = const [],
+    this.dailyGoalStreak = 365, // Default to 1 year goal
   });
 
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
@@ -46,10 +65,9 @@ class UserModel {
       photoUrl: data['photoUrl'],
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       lastLoginAt: (data['lastLoginAt'] as Timestamp).toDate(),
-      lastCheckIn:
-          data['lastCheckIn'] != null
-              ? (data['lastCheckIn'] as Timestamp).toDate()
-              : null,
+      lastCheckIn: data['lastCheckIn'] != null
+          ? (data['lastCheckIn'] as Timestamp).toDate()
+          : null,
       isPremiumUser: data['isPremiumUser'] ?? false,
       bitcoinWalletAddress: data['bitcoinWalletAddress'],
       currentStreak: data['currentStreak'] ?? 0,
@@ -59,6 +77,19 @@ class UserModel {
       onboardingData: Map<String, dynamic>.from(data['onboardingData'] ?? {}),
       paidMilestones: List<String>.from(data['paidMilestones'] ?? []),
       preferences: Map<String, dynamic>.from(data['preferences'] ?? {}),
+      // New habit category fields
+      habitType: data['habitType'] != null
+          ? HabitType.values.byName(data['habitType'])
+          : null,
+      habitStartDate: data['habitStartDate'] != null
+          ? (data['habitStartDate'] as Timestamp).toDate()
+          : null,
+      customHabitName: data['customHabitName'],
+      customHabitDescription: data['customHabitDescription'],
+      selectedTriggers: List<String>.from(data['selectedTriggers'] ?? []),
+      selectedAlternatives:
+          List<String>.from(data['selectedAlternatives'] ?? []),
+      dailyGoalStreak: data['dailyGoalStreak'] ?? 365,
     );
   }
 
@@ -80,6 +111,15 @@ class UserModel {
       'onboardingData': onboardingData,
       'paidMilestones': paidMilestones,
       'preferences': preferences,
+      // New habit category fields
+      'habitType': habitType?.name,
+      'habitStartDate':
+          habitStartDate != null ? Timestamp.fromDate(habitStartDate!) : null,
+      'customHabitName': customHabitName,
+      'customHabitDescription': customHabitDescription,
+      'selectedTriggers': selectedTriggers,
+      'selectedAlternatives': selectedAlternatives,
+      'dailyGoalStreak': dailyGoalStreak,
     };
   }
 
@@ -98,6 +138,14 @@ class UserModel {
     Map<String, dynamic>? onboardingData,
     List<String>? paidMilestones,
     Map<String, dynamic>? preferences,
+    // New habit category fields
+    HabitType? habitType,
+    DateTime? habitStartDate,
+    String? customHabitName,
+    String? customHabitDescription,
+    List<String>? selectedTriggers,
+    List<String>? selectedAlternatives,
+    int? dailyGoalStreak,
   }) {
     return UserModel(
       id: id,
@@ -116,6 +164,15 @@ class UserModel {
       onboardingData: onboardingData ?? this.onboardingData,
       paidMilestones: paidMilestones ?? this.paidMilestones,
       preferences: preferences ?? this.preferences,
+      // New habit category fields
+      habitType: habitType ?? this.habitType,
+      habitStartDate: habitStartDate ?? this.habitStartDate,
+      customHabitName: customHabitName ?? this.customHabitName,
+      customHabitDescription:
+          customHabitDescription ?? this.customHabitDescription,
+      selectedTriggers: selectedTriggers ?? this.selectedTriggers,
+      selectedAlternatives: selectedAlternatives ?? this.selectedAlternatives,
+      dailyGoalStreak: dailyGoalStreak ?? this.dailyGoalStreak,
     );
   }
 
@@ -133,6 +190,26 @@ class UserModel {
 
   bool get canCheckIn => !hasCheckedInToday;
 
+  // New habit category helper methods
+  HabitCategory? get habitCategory {
+    if (habitType == null) return null;
+    return HabitCategory.getByType(habitType!);
+  }
+
+  String get habitDisplayName {
+    if (habitType == HabitType.custom && customHabitName != null) {
+      return customHabitName!;
+    }
+    return habitCategory?.name ?? 'Your Habit';
+  }
+
+  String get habitDescription {
+    if (habitType == HabitType.custom && customHabitDescription != null) {
+      return customHabitDescription!;
+    }
+    return habitCategory?.description ?? 'Breaking a bad habit';
+  }
+
   String get streakDisplayText {
     if (currentStreak == 0) return 'Start your journey';
     if (currentStreak == 1) return '1 day clean';
@@ -143,18 +220,63 @@ class UserModel {
     return '\$${totalEarned.toStringAsFixed(2)}';
   }
 
-  // Get next milestone target
+  // Get next milestone target based on habit category
   int get nextMilestoneTarget {
-    if (currentStreak < 1) return 1;
-    if (currentStreak < 7) return 7;
-    if (currentStreak < 30) return 30;
-    if (currentStreak < 90) return 90;
-    if (currentStreak < 180) return 180;
-    if (currentStreak < 365) return 365;
-    return 730; // 2 years
+    final category = habitCategory;
+    if (category == null) {
+      // Default milestones
+      if (currentStreak < 1) return 1;
+      if (currentStreak < 7) return 7;
+      if (currentStreak < 30) return 30;
+      if (currentStreak < 90) return 90;
+      if (currentStreak < 365) return 365;
+      return 730; // 2 years
+    }
+
+    // Use category-specific milestones
+    for (var milestone in category.milestoneRewards.keys) {
+      if (milestone > currentStreak) {
+        return milestone;
+      }
+    }
+    return dailyGoalStreak; // Return user's goal if all milestones completed
   }
 
   int get daysToNextMilestone {
     return nextMilestoneTarget - currentStreak;
+  }
+
+  // Get potential reward for next milestone
+  double? get nextMilestoneReward {
+    final category = habitCategory;
+    if (category == null) return null;
+    return category.getRewardForDay(nextMilestoneTarget);
+  }
+
+  // Check if user has completed onboarding for habit categories
+  bool get hasCompletedHabitOnboarding {
+    return habitType != null && habitStartDate != null;
+  }
+
+  // Get days since starting habit journey
+  int get daysSinceStart {
+    if (habitStartDate == null) return 0;
+    return DateTime.now().difference(habitStartDate!).inDays;
+  }
+
+  // Get progress percentage toward daily goal
+  double get progressPercentage {
+    if (dailyGoalStreak == 0) return 0.0;
+    return (currentStreak / dailyGoalStreak).clamp(0.0, 1.0);
+  }
+
+  // Get a random motivational quote for user's habit
+  String? get motivationalQuote {
+    final category = habitCategory;
+    if (category == null || category.motivationalQuotes.isEmpty) return null;
+    final now = DateTime.now();
+    final index =
+        (now.day + now.month + now.year) % category.motivationalQuotes.length;
+    return category.motivationalQuotes[index];
   }
 }
