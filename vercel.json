@@ -1,7 +1,7 @@
 {
-  "framework": null,
-  "buildCommand": "flutter build web --release",
+  "buildCommand": "git config --global --add safe.directory /vercel/path0/flutter && curl -fsSL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.24.0-stable.tar.xz | tar -xJ && export PATH=\"$PWD/flutter/bin:$PATH\" && flutter config --no-analytics && flutter pub get && flutter build web --release",
   "outputDirectory": "build/web",
+  "framework": null,
   "rewrites": [
     {
       "source": "/(.*)",
@@ -10,11 +10,11 @@
   ],
   "headers": [
     {
-      "source": "/(.*)\\.(js|css|woff2?|ttf|otf|eot)",
+      "source": "/flutter_service_worker.js",
       "headers": [
         {
           "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
+          "value": "no-cache"
         }
       ]
     }
