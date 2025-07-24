@@ -2,15 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'firebase_options.dart';
 import 'core/constants/app_constants.dart';
 import 'core/providers/auth_provider.dart';
+import 'core/theme/app_theme.dart';
 import 'screens/auth/auth_screen.dart';
 import 'screens/onboarding/mvp_onboarding_screen.dart';
-import 'screens/dashboard/mvp_dashboard_screen.dart';
+import 'screens/dashboard/enhanced_dashboard_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,36 +41,8 @@ class QuitForBitApp extends ConsumerWidget {
     return MaterialApp(
       title: 'QuitForBit',
       debugShowCheckedModeBanner: false,
-      theme: _buildTheme(),
+      theme: AppTheme.darkTheme,
       home: const AppNavigator(),
-    );
-  }
-
-  ThemeData _buildTheme() {
-    return ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.orange,
-        brightness: Brightness.light,
-      ),
-      textTheme: GoogleFonts.interTextTheme(),
-      appBarTheme: const AppBarTheme(
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        systemOverlayStyle: SystemUiOverlayStyle.dark,
-      ),
-      cardTheme: CardTheme(
-        elevation: 2,
-        margin: const EdgeInsets.all(0),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      ),
     );
   }
 }
@@ -90,7 +61,7 @@ class AppNavigator extends ConsumerWidget {
         } else if (user.onboardingData.isEmpty) {
           return const MVPOnboardingScreen();
         } else {
-          return const MVPDashboardScreen();
+          return const EnhancedDashboardScreen();
         }
       },
       loading: () => const SplashScreen(),
